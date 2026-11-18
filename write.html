@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI writing helper</title>
+<meta name="description" content="The AI writing helper for Chausima Suite: write, improve, shorten or fix your text, then paste it back into your document.">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="https://chausima.com/favicon.svg">
+<script>
+try{ var m = document.cookie.match(/(?:^|; )hl_theme=(dark|light|system)/), t = m ? m[1] : JSON.parse(localStorage.getItem("hl.theme"));
+     if(t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t); }catch(e){}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&display=swap">
+<style>
+:root{--bg:#f7f7f4;--card:#fff;--ink:#16181d;--soft:#5b6170;--faint:#8a8f9c;--rule:#e3e3dc;--accent:#1f4fd8;--accent-soft:#e8eefc;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101216;--card:#181b21;--ink:#ecedf0;--soft:#a3a8b4;--faint:#767c89;--rule:#2a2e37;--accent:#7d9cf5;--accent-soft:#172340;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#101216;--card:#181b21;--ink:#ecedf0;--soft:#a3a8b4;--faint:#767c89;--rule:#2a2e37;--accent:#7d9cf5;--accent-soft:#172340;color-scheme:dark}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:640px;margin:0 auto;padding:18px 16px 40px}
+header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+header img{width:30px;height:30px}
+h1{font:800 1.3rem/1.15 "Bricolage Grotesque",system-ui,sans-serif;letter-spacing:-.02em;margin:0}
+h1 small{display:block;font:500 .82rem system-ui,sans-serif;color:var(--soft);letter-spacing:0}
+label{display:block;font-weight:600;font-size:.92rem;margin:14px 0 6px}
+textarea,input{width:100%;font:inherit;color:var(--ink);background:var(--card);border:1.5px solid var(--rule);border-radius:14px;padding:10px 12px}
+textarea{min-height:130px;resize:vertical}
+textarea:focus,input:focus{outline:0;border-color:var(--accent)}
+.hint{font-size:.82rem;color:var(--faint);margin:6px 0 0}
+.acts{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px}
+.acts button,.bar button{border:1.5px solid var(--rule);background:var(--card);color:var(--ink);border-radius:999px;padding:7px 14px;font:inherit;font-size:.9rem;cursor:pointer}
+.acts button.main{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.acts button:disabled{opacity:.5;cursor:default}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.out{margin-top:16px;background:var(--card);border:1.5px solid var(--rule);border-radius:16px;padding:14px 16px;white-space:pre-wrap;min-height:60px}
+.out.busy{color:var(--soft)}
+.bar{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.err{color:#e5484d}
+.gate{text-align:center;padding:40px 10px}
+.gate a{display:inline-block;margin-top:12px;background:var(--accent);color:#fff;text-decoration:none;border-radius:999px;padding:10px 20px;font-weight:700}
+.fine{font-size:.8rem;color:var(--faint);margin-top:22px}
+</style>
+</head>
+<body>
+<main>
+  <header><img src="https://chausima.com/favicon.svg" alt=""><h1>AI writing helper<small>for Chausima Suite</small></h1></header>
+  <div id="gate" class="gate" hidden>
+    <p>Sign in to use the writing helper. It's free and uses the same sign-in as HWLAI.</p>
+    <a id="gateLink" href="https://hwlai.civilinitiatives.org/?back=write">Sign in</a>
+  </div>
+  <div id="app" hidden>
+    <label for="txt">Your text</label>
+    <textarea id="txt" placeholder="Paste text from your document here, or leave it empty and just say what you want below."></textarea>
+    <label for="ins">What do you want? <span style="font-weight:400;color:var(--faint)">(optional for the buttons below)</span></label>
+    <input id="ins" placeholder="For example: a paragraph about how volcanoes form, for Year 8 geography">
+    <div class="acts" role="group" aria-label="What to do">
+      <button type="button" class="main" data-do="write">Write it</button>
+      <button type="button" data-do="improve">Improve</button>
+      <button type="button" data-do="fix">Fix spelling and grammar</button>
+      <button type="button" data-do="shorter">Shorten</button>
+      <button type="button" data-do="longer">Make longer</button>
+      <button type="button" data-do="simple">Simpler words</button>
+      <button type="button" data-do="bullets">Bullet points</button>
+      <button type="button" data-do="explain">Explain it to me</button>
+    </div>
+    <p class="hint">Your Suite document stays encrypted. Only what you paste here goes to the AI, and personal details it can spot are taken out first.</p>
+    <div id="out" class="out" aria-live="polite" hidden></div>
+    <div id="bar" class="bar" hidden>
+      <button type="button" id="copy">Copy</button>
+      <button type="button" id="use">Use as my text</button>
+    </div>
+    <p class="fine">AI can get things wrong, so read it through. Check your school's rules about using AI for homework.</p>
+  </div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
+<script src="https://civilinitiatives.org/auth-store.js?b=20261026a"></script>
+<script>
+/* The AI writing helper for Chausima Suite. Suite documents are end-to-end encrypted, so nothing outside a
+   document can read it: people paste text in here and copy the result back. Every request goes to hwchat
+   (model "writing"), so the safety check and the personal-information filter run on it. */
+(function () {
+  "use strict";
+  var URL_ = "https://hehs-live.duckdns.org", KEY_ = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzkyODMyMjkwLCJleHAiOjIxMDgxOTIyOTB9.7gFhQa5RBwVtiOPLO7Qf2-aVEbkd5xgpLiN1J06Gybo";
+  var $ = function (id) { return document.getElementById(id); }, sb = null, thread = null, busy = false, result = "";
+  try { sb = window.supabase.createClient(URL_, KEY_, { auth: { persistSession: true, autoRefreshToken: true, storage: (window.HEHAuth && window.HEHAuth.storage) || undefined } }); } catch (e) {}
+  var JOBS = {
+    write:   function (t, i) { return "Write this for me: " + (i || "something based on the text below") + "." + (t ? "\n\nUse this as a starting point or notes:\n" + t : ""); },
+    improve: function (t, i) { return "Improve this writing so it reads better, keeping the meaning and the writer's voice." + (i ? " Also: " + i + "." : ""); },
+    fix:     function () { return "Fix the spelling, grammar and punctuation in this text. Change nothing else."; },
+    shorter: function (t, i) { return "Make this text shorter, keeping the main points." + (i ? " " + i + "." : ""); },
+    longer:  function (t, i) { return "Make this text longer by adding detail and explanation, in the same style." + (i ? " " + i + "." : ""); },
+    simple:  function () { return "Rewrite this text in simpler words that a Year 7 student would understand."; },
+    bullets: function () { return "Turn this text into clear, short bullet points."; },
+    explain: function () { return "Explain this text to me simply: what it means and the key ideas. Don't rewrite it."; }
+  };
+  function prompt(job, t, i) {
+    var p = JOBS[job](t, i);
+    if (job !== "write" && t) p += "\n\nText:\n" + t;
+    if (job !== "explain") p += "\n\nReply with only the finished text, ready to paste into a document. No introduction or comments.";
+    return p;
+  }
+  function call(payload, onDelta) {
+    payload.stream = true;
+    return sb.auth.getSession().then(function (s) {
+      var tok = s.data && s.data.session && s.data.session.access_token;
+      if (!tok) return { error: "signin" };
+      return fetch(URL_ + "/functions/v1/hwchat", { method: "POST", headers: { Authorization: "Bearer " + tok, apikey: KEY_, "content-type": "application/json" }, body: JSON.stringify(payload) }).then(function (r) {
+        var ct = r.headers.get("content-type") || "";
+        if (ct.indexOf("text/event-stream") < 0 || !r.body || !window.TextDecoder) return r.json().catch(function () { return { error: "Something went wrong - try again." }; });
+        var reader = r.body.getReader(), dec = new TextDecoder(), buf = "", done = null;
+        function pump() {
+          return reader.read().then(function (x) {
+            if (x.done) return done || { error: "The answer stopped early - try again." };
+            buf += dec.decode(x.value, { stream: true });
+            var i;
+            while ((i = buf.indexOf("\n\n")) >= 0) {
+              var ev = buf.slice(0, i); buf = buf.slice(i + 2);
+              ev.split("\n").forEach(function (line) {
+                if (line.indexOf("data:") !== 0) return;
+                try { var o = JSON.parse(line.slice(5)); if (o.t) onDelta(o.t); else if (o.done) done = o; } catch (e) {}
+              });
+            }
+            return pump();
+          });
+        }
+        return pump();
+      });
+    }).catch(function () { return { error: "Couldn't reach the AI - check your connection and try again." }; });
+  }
+  function setBusy(b) { busy = b; Array.prototype.forEach.call(document.querySelectorAll(".acts button"), function (x) { x.disabled = b; }); }
+  document.querySelector(".acts").onclick = function (e) {
+    var b = e.target.closest("[data-do]"); if (!b || busy) return;
+    var t = $("txt").value.trim().slice(0, 12000), i = $("ins").value.trim().slice(0, 500), job = b.dataset.do;
+    var out = $("out");
+    if (job !== "write" && !t) { out.hidden = false; out.className = "out err"; out.textContent = "Paste some text first, then press " + b.textContent + "."; return; }
+    if (job === "write" && !t && !i) { out.hidden = false; out.className = "out err"; out.textContent = "Say what you want written in the box above."; $("ins").focus(); return; }
+    setBusy(true); $("bar").hidden = true; out.hidden = false; out.className = "out busy"; out.textContent = "Working on it…"; result = "";
+    call({ action: "send", thread: thread, text: prompt(job, t, i), model: "writing", files: [] }, function (d) { result += d; out.className = "out"; out.textContent = result; }).then(function (d) {
+      setBusy(false);
+      if (d && d.error === "signin") { show(false); return; }
+      if (!d || d.error) { out.className = "out err"; out.textContent = (d && d.error) || "Something went wrong - try again."; return; }
+      if (d.thread) thread = d.thread;
+      result = d.reply || result; out.className = "out"; out.textContent = result; $("bar").hidden = false;
+      if (d.removed && d.removed.length) out.insertAdjacentHTML("beforeend", '<p class="hint">🔒 Took out ' + d.removed.map(function (x) { return String(x).replace(/[<>&]/g, ""); }).join(", ") + " first</p>");
+    });
+  };
+  $("copy").onclick = function () { var b = this; try { navigator.clipboard.writeText(result).then(function () { b.textContent = "Copied - paste it into your document"; setTimeout(function () { b.textContent = "Copy"; }, 2500); }); } catch (e) {} };
+  $("use").onclick = function () { $("txt").value = result; $("txt").focus(); };
+  function show(signedIn) { $("gate").hidden = signedIn; $("app").hidden = !signedIn; if (signedIn) $("txt").focus(); }
+  (sb ? sb.auth.getSession() : Promise.resolve({ data: {} })).then(function (s) { show(!!(s.data && s.data.session)); }, function () { show(false); });
+})();
+</script>
+</body>
+</html>

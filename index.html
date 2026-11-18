@@ -387,6 +387,10 @@ main{flex:1;width:100%;max-width:760px;margin:0 auto;padding:0 20px 40px}
   /* signed in? then answer a question passed in the address (#q=...) */
   (sb ? sb.auth.getSession() : Promise.resolve({ data: {} })).then(function (s) {
     signedIn = !!(s.data && s.data.session);
+    /* came from the Suite's writing helper? go back there once signed in */
+    var back = false; try { back = /[?&]back=write/.test(location.search) || sessionStorage.getItem("hwlai.back") === "write"; if (back && !signedIn) sessionStorage.setItem("hwlai.back", "write"); } catch (e) {}
+    if (back && signedIn) { try { sessionStorage.removeItem("hwlai.back"); } catch (e) {} location.replace("./write.html"); return; }
+    if (back && !signedIn) { gate(); return; }
     var q = "";
     try { q = new URLSearchParams(location.hash.slice(1)).get("q") || new URLSearchParams(location.search).get("q") || ""; } catch (e) {}
     if (!signedIn) { if (q) gate(); return; }

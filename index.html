@@ -39,6 +39,24 @@ main{flex:1;width:100%;max-width:760px;margin:0 auto;padding:0 20px 40px}
 .ask button:disabled{opacity:.4;cursor:default}
 .ask button:focus-visible,.chips button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.agentsw{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;margin:-6px 0 18px;font-size:.88rem;color:var(--soft)}
+.agentsw button{border:1.5px solid var(--rule);background:var(--card);color:var(--ink);border-radius:999px;padding:6px 14px;font:inherit;font-weight:600;cursor:pointer}
+.agentsw button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.follow .agentsw{margin:0 0 8px;justify-content:flex-start}
+.steps{list-style:none;padding:0;margin:4px 0 16px;display:flex;flex-direction:column;gap:8px}
+.steps li{border:1px solid var(--rule);border-radius:14px;padding:10px 14px;background:var(--card)}
+.steps .sh{display:flex;gap:10px;align-items:flex-start}
+.steps .ic{flex:0 0 22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:.75rem;font-weight:700;background:var(--accent-soft);color:var(--accent)}
+.steps li[data-s="run"] .ic{animation:agpulse 1s ease-in-out infinite}
+.steps li[data-s="done"] .ic{background:var(--accent);color:#fff}
+.steps li[data-s="fail"] .ic{background:#e5484d;color:#fff}
+@keyframes agpulse{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.steps li[data-s="run"] .ic{animation:none}}
+.steps .st{font-size:.8rem;color:var(--faint)}
+.steps details{margin-top:6px}.steps summary{cursor:pointer;font-size:.85rem;color:var(--soft)}
+.agbar{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 4px}
+.agbar button,.agbar a{border:1px solid var(--rule);background:var(--card);color:var(--ink);border-radius:999px;padding:6px 14px;font:inherit;font-size:.88rem;cursor:pointer;text-decoration:none}
+.agbar .stop{border-color:#e5484d;color:#e5484d}
 .chips button{border:1px solid var(--rule);background:var(--card);color:var(--ink);border-radius:999px;padding:7px 14px;font:inherit;font-size:.9rem;cursor:pointer}
 .chips button:hover{border-color:var(--accent)}
 .fine{font-size:.78rem;color:var(--faint);text-align:center;margin:10px auto 0;max-width:34rem}
@@ -87,11 +105,12 @@ main{flex:1;width:100%;max-width:760px;margin:0 auto;padding:0 20px 40px}
     <span class="word" aria-label="HWLAI">HWL<span class="q">AI</span></span>
     <p>Ask anything. HWLAI searches the web and answers with its sources, free.</p>
     <form class="ask" id="askHome"><textarea id="qHome" rows="1" placeholder="Ask HWLAI anything" aria-label="Ask HWLAI anything" autocomplete="off"></textarea><button type="submit" aria-label="Ask">↑</button></form>
+    <div class="agentsw"><button type="button" class="agentBtn" aria-pressed="false">🤖 Agent mode</button><span>Plans the steps, researches each one, then writes it up for you.</span></div>
     <div class="chips" id="ideas"></div>
     <p class="fine">🔒 Don't share personal information. HWLAI takes out what it can spot first. AI can get things wrong, so check the sources for anything important.</p>
   </section>
   <div id="log"></div>
-  <div class="follow" id="followBox" hidden><form class="ask" id="askMore"><textarea id="qMore" rows="1" placeholder="Ask a follow-up" aria-label="Ask a follow-up" autocomplete="off"></textarea><button type="submit" aria-label="Ask">↑</button></form></div>
+  <div class="follow" id="followBox" hidden><div class="agentsw"><button type="button" class="agentBtn" aria-pressed="false">🤖 Agent mode</button></div><form class="ask" id="askMore"><textarea id="qMore" rows="1" placeholder="Ask a follow-up" aria-label="Ask a follow-up" autocomplete="off"></textarea><button type="submit" aria-label="Ask">↑</button></form></div>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.0/dist/umd/supabase.js"></script>
 <script src="https://civilinitiatives.org/auth-store.js?b=20261026a"></script>
@@ -235,9 +254,102 @@ main{flex:1;width:100%;max-width:760px;margin:0 auto;padding:0 20px 40px}
       });
     }).catch(function () { return { error: "Couldn't reach HWLAI - check your connection and try again." }; });
   }
+  /* ---------- Agent mode: plan -> research each step (HWLAI, with sources) -> write it up ----------
+     Every step is an ordinary hwchat call, so the safety check and the personal-information filter
+     run on all of it. The steps stay in the same chat, so the write-up can use what was found. */
+  var agent = false;
+  try { agent = localStorage.getItem("hwlai.agent") === "1"; } catch (e) {}
+  function drawAgent() {
+    Array.prototype.forEach.call(document.querySelectorAll(".agentBtn"), function (b) { b.setAttribute("aria-pressed", String(agent)); b.textContent = agent ? "🤖 Agent mode: on" : "🤖 Agent mode"; });
+    $("qHome").placeholder = agent ? "Give HWLAI a task, like: write a report on the causes of WW1" : "Ask HWLAI anything";
+    $("qMore").placeholder = agent ? "Give HWLAI another task" : "Ask a follow-up";
+  }
+  Array.prototype.forEach.call(document.querySelectorAll(".agentBtn"), function (b) {
+    b.onclick = function () { agent = !agent; try { localStorage.setItem("hwlai.agent", agent ? "1" : "0"); } catch (e) {} drawAgent(); };
+  });
+  drawAgent();
+  function planOf(reply, task) {
+    var out = [];
+    String(reply || "").split("\n").forEach(function (l) { var m = l.match(/^\s*(?:\d+[.)]|[-*•])\s+(.{6,200})$/); if (m && out.length < 4) out.push(m[1].replace(/\*\*/g, "").trim()); });
+    return out.length ? out : [task];
+  }
+  function docFile(title, html) {
+    var page = '<html><head><meta charset="utf-8"><title>' + esc(title) + '</title></head><body style="font-family:Calibri,Arial,sans-serif">' + html + "</body></html>";
+    var a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([page], { type: "application/msword" }));
+    a.download = title.replace(/[^\w -]+/g, "").trim().slice(0, 60).replace(/\s+/g, "-") + ".doc"; document.body.appendChild(a); a.click(); a.remove();
+  }
+  function runAgent(task) {
+    busy = true;
+    $("home").hidden = true; $("logo").hidden = false; $("followBox").hidden = false;
+    document.title = task.slice(0, 60) + " - HWLAI agent";
+    var box = document.createElement("section"); box.className = "qa";
+    box.innerHTML = '<h2></h2><div class="status"><span class="dot" aria-hidden="true"></span><span>Planning the steps…</span></div><ol class="steps" aria-label="Agent steps"></ol>' +
+      '<div class="agbar"><button type="button" class="stop">Stop</button></div><div class="body" aria-live="polite"></div><div class="srcs" hidden></div><div class="agbar fin" hidden></div><div class="meta" hidden></div>';
+    box.querySelector("h2").textContent = task;
+    $("log").appendChild(box); box.scrollIntoView({ behavior: "smooth", block: "start" });
+    var st = box.querySelector(".status span"), list = box.querySelector(".steps"), body = box.querySelector(".body"), stopped = false, all = [], seen = {};
+    box.querySelector(".stop").onclick = function () { stopped = true; this.disabled = true; this.textContent = "Stopping after this step…"; };
+    function end(msg) {
+      busy = false; box.querySelector(".status").hidden = true; box.querySelector(".stop").parentNode.hidden = true;
+      if (msg) body.innerHTML = '<p class="err">' + esc(msg) + "</p>";
+    }
+    function step(text, model) { return call({ action: "send", thread: thread, text: text, model: model, files: [] }, function () {}, null).then(function (d) { if (d && d.thread) thread = d.thread; return d; }); }
+    step("You are planning research for a task. Task: " + task + "\n\nReply with ONLY a numbered list of 2 to 4 short, separate web-search questions that together cover what is needed for the task. No other words.", "fast").then(function (d) {
+      if (d && d.error === "signin") { end(); gate(); return; }
+      if (!d || d.error) return end((d && d.error) || "Couldn't plan that - try again.");
+      var plan = planOf(d.reply, task);
+      list.innerHTML = plan.map(function (q, i) { return '<li data-s="wait"><div class="sh"><span class="ic">' + (i + 1) + '</span><div><div class="q"></div><div class="st">Waiting</div></div></div></li>'; }).join("") +
+        '<li data-s="wait"><div class="sh"><span class="ic">✎</span><div><div class="q">Write it up</div><div class="st">Waiting</div></div></div></li>';
+      Array.prototype.forEach.call(list.querySelectorAll(".q"), function (el, i) { if (i < plan.length) el.textContent = plan[i]; });
+      var lis = list.querySelectorAll("li"), i = 0;
+      function next() {
+        if (stopped) return end("Stopped. The steps that finished are above.");
+        if (i >= plan.length) return write();
+        var li = lis[i], q = plan[i]; li.dataset.s = "run"; li.querySelector(".st").textContent = "Searching the web…"; st.textContent = "Step " + (i + 1) + " of " + (plan.length + 1) + ": researching";
+        step(q, "hwlai").then(function (r) {
+          if (!r || r.error) { li.dataset.s = "fail"; li.querySelector(".st").textContent = (r && r.error) || "Didn't work - skipped"; }
+          else {
+            li.dataset.s = "done"; var src = r.sources || [];
+            src.forEach(function (x) { var u = srcUrl(x.url); if (u && !seen[u]) { seen[u] = 1; all.push(x); } });
+            li.querySelector(".st").textContent = "Done · " + src.length + " source" + (src.length === 1 ? "" : "s");
+            var det = document.createElement("details"); det.innerHTML = "<summary>What it found</summary><div class=\"body\">" + cites(md(r.reply || ""), src) + "</div>";
+            li.querySelector(".sh > div").appendChild(det);
+          }
+          i++; next();
+        });
+      }
+      function write() {
+        var li = lis[plan.length]; li.dataset.s = "run"; li.querySelector(".st").textContent = "Writing…"; st.textContent = "Writing it up from " + all.length + " source" + (all.length === 1 ? "" : "s") + "…";
+        var live = "", timer = 0;
+        call({ action: "send", thread: thread, text: "Now complete the task using the research answers above in this chat. Task: " + task +
+          "\n\nWrite the finished piece itself, clearly organised with headings where they help, for a secondary-school student. Don't use [1] style numbers; where it helps, say which website a fact came from. End with one short line starting 'Check:' naming anything that might be wrong or out of date.", model: "writing", files: [] },
+          function (t) { live += t; box.querySelector(".status").hidden = true; if (!timer) timer = setTimeout(function () { timer = 0; body.innerHTML = md(live); }, 80); }, null).then(function (r) {
+          if (timer) { clearTimeout(timer); timer = 0; }
+          if (r && r.thread) thread = r.thread;
+          if (!r || r.error) { li.dataset.s = "fail"; li.querySelector(".st").textContent = "Didn't work"; return end((r && r.error) || "Couldn't write it up - try again."); }
+          li.dataset.s = "done"; li.querySelector(".st").textContent = "Done";
+          body.innerHTML = md(r.reply || live); end();
+          if (all.length) { var sb2 = box.querySelector(".srcs"); sb2.hidden = false; sb2.innerHTML = sourcesHtml(all.map(function (x, k) { return { n: k + 1, title: x.title, url: x.url, site: x.site }; })).replace(/^<div class="srcs"[^>]*>|<\/div>$/g, ""); }
+          var fin = box.querySelector(".fin"); fin.hidden = false;
+          fin.innerHTML = '<button type="button" data-a="copy">Copy</button><button type="button" data-a="doc">Download for Word</button><a href="https://suite.chausima.com/" target="_blank" rel="noopener" data-a="suite">Copy and open Chausima Suite</a>';
+          var text = r.reply || live, src = all.length ? "\n\nSources:\n" + all.map(function (x, k) { return (k + 1) + ". " + x.title + " - " + x.url; }).join("\n") : "";
+          fin.onclick = function (e) {
+            var a = e.target.closest("[data-a]"); if (!a) return;
+            if (a.dataset.a === "doc") return docFile(task, body.innerHTML + (all.length ? "<h3>Sources</h3><ol>" + all.map(function (x) { return '<li><a href="' + esc(srcUrl(x.url)) + '">' + esc(x.title) + "</a></li>"; }).join("") + "</ol>" : ""));
+            try { navigator.clipboard.writeText(text + src); } catch (e2) {}
+            if (a.dataset.a === "copy") { a.textContent = "Copied"; setTimeout(function () { a.textContent = "Copy"; }, 1500); }
+          };
+          var meta = box.querySelector(".meta"); meta.hidden = false;
+          meta.innerHTML = thread ? '<a href="https://ai.civilinitiatives.org/?c=' + encodeURIComponent(thread) + '">See every step in Launchpad AI ↗</a>' : "";
+        });
+      }
+      next();
+    });
+  }
   function ask(q) {
     if (busy) return;
     if (!signedIn) { gate(); return; }
+    if (agent) return runAgent(q);
     busy = true;
     $("home").hidden = true; $("logo").hidden = false; $("followBox").hidden = false;
     try { history.replaceState(null, "", "#q=" + encodeURIComponent(q.slice(0, 500))); } catch (e) {}

@@ -70,12 +70,18 @@ main{flex:1;width:100%;max-width:760px;margin:0 auto;padding:0 20px 40px}
 .meta a{color:var(--soft)}
 .follow{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 30%);padding:22px 0 14px}
 .gate{text-align:center;padding:40px 0}
-.gate a{display:inline-block;background:var(--accent);color:#fff;text-decoration:none;padding:10px 20px;border-radius:999px;font-weight:600;margin-top:10px}
+.gate a,.gate button{display:inline-block;background:var(--accent);color:#fff;text-decoration:none;padding:10px 20px;border:0;border-radius:999px;font:600 1rem inherit;margin-top:10px;cursor:pointer}
+.gate .sso{display:flex;flex-direction:column;gap:8px;max-width:320px;margin:16px auto 0}
+.gate .sso button.alt{background:transparent;color:inherit;border:1.5px solid currentColor;opacity:.85}
+.gate form{display:flex;flex-direction:column;gap:8px;width:100%;max-width:320px;margin:4px auto 6px;text-align:left}
+.gate form input,.gate form button{width:100%}
+.gate input{padding:10px 12px;border-radius:12px;border:1.5px solid rgba(127,127,127,.4);background:transparent;color:inherit;font:1rem inherit}
+.gate .err{color:#e5484d;min-height:1.2em;font-size:.9rem;margin:2px 0 0}
 @media (max-width:560px){.top{padding:10px 16px} main{padding:0 16px 30px} .qa h2{font-size:1.3rem} .home{min-height:55vh}}
 </style>
 </head>
 <body>
-<div class="top"><a class="word" href="./" style="font-size:1.25rem" id="logo" hidden>HWL<span class="q">AI</span></a><span class="sp"></span><span data-chausima-apps></span><a href="https://ai.civilinitiatives.org/" id="openLai">Launchpad AI</a><a href="https://civilinitiatives.org/">Launchpad</a></div>
+<div class="top"><a class="word" href="./" style="font-size:1.25rem" id="logo" hidden>HWL<span class="q">AI</span></a><span class="sp"></span><span data-chausima-apps></span><a href="https://ai.civilinitiatives.org/" id="openLai" hidden>Launchpad AI</a><a href="https://civilinitiatives.org/" id="openLp" hidden>Launchpad</a></div>
 <main id="main">
   <section class="home" id="home">
     <span class="word" aria-label="HWLAI">HWL<span class="q">AI</span></span>
@@ -177,9 +183,29 @@ main{flex:1;width:100%;max-width:760px;margin:0 auto;padding:0 20px 40px}
     t.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); f.requestSubmit ? f.requestSubmit() : f.dispatchEvent(new Event("submit")); } });
     f.addEventListener("submit", function (e) { e.preventDefault(); var q = t.value.trim(); if (!q) return; t.value = ""; grow(t); ask(q); });
   });
+  /* not signed in: sign in right here (Chausima, Google or Microsoft); the question waits and is asked straight after */
   function gate() {
     $("home").hidden = true; $("followBox").hidden = true;
-    $("log").innerHTML = '<div class="gate"><span class="word" style="font-size:3rem">HWL<span class="q">AI</span></span><p>Sign in on the Launchpad to use HWLAI. It\'s free.</p><a href="https://civilinitiatives.org/">Sign in on the Launchpad</a></div>';
+    var q = ""; try { q = new URLSearchParams(location.hash.slice(1)).get("q") || ""; if (q) sessionStorage.setItem("hwlai.q", q); } catch (e) {}
+    $("log").innerHTML = '<div class="gate"><span class="word" style="font-size:3rem">HWL<span class="q">AI</span></span><p>Sign in to use HWLAI. It\'s free.</p>' +
+      '<div class="sso"><button type="button" id="gChz">Sign in with Chausima</button>' +
+      '<form id="gForm" hidden><input id="gEm" placeholder="name@chausima.com" autocomplete="username" autocapitalize="none" spellcheck="false" aria-label="Chausima address" required>' +
+      '<input id="gPw" type="password" placeholder="Password" autocomplete="current-password" aria-label="Password" required><button>Sign in</button><p class="err" id="gErr" role="alert"></p></form>' +
+      '<button type="button" class="alt" data-p="google">Sign in with Google</button><button type="button" class="alt" data-p="azure">Sign in with Microsoft (school)</button></div></div>';
+    $("gChz").onclick = function () { $("gForm").hidden = false; this.hidden = true; $("gEm").focus(); };
+    Array.prototype.forEach.call(document.querySelectorAll(".gate [data-p]"), function (b) {
+      b.onclick = function () { sb.auth.signInWithOAuth({ provider: b.dataset.p, options: { redirectTo: location.origin + location.pathname, scopes: b.dataset.p === "azure" ? "email" : undefined } }); };
+    });
+    $("gForm").onsubmit = function (e) {
+      e.preventDefault(); var err = $("gErr"); err.textContent = "Signing in…";
+      fetch(URL_ + "/functions/v1/chausima-login", { method: "POST", headers: { "content-type": "application/json", apikey: KEY_, Authorization: "Bearer " + KEY_ },
+        body: JSON.stringify({ email: $("gEm").value.trim(), password: $("gPw").value }) })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j.ok) { err.textContent = j.reason || "Couldn't sign in."; $("gPw").value = ""; return; }
+          return sb.auth.verifyOtp({ token_hash: j.token_hash, type: "email" }).then(function (r) { if (r.error) { err.textContent = "Couldn't finish signing in. Try again."; return; } location.reload(); });
+        }).catch(function () { err.textContent = "Can't reach the server. Check your connection."; });
+    };
   }
   function call(payload, onDelta, onEvent) {
     payload.stream = true;
@@ -252,6 +278,8 @@ main{flex:1;width:100%;max-width:760px;margin:0 auto;padding:0 20px 40px}
     var q = "";
     try { q = new URLSearchParams(location.hash.slice(1)).get("q") || new URLSearchParams(location.search).get("q") || ""; } catch (e) {}
     if (!signedIn) { if (q) gate(); return; }
+    $("openLai").hidden = false; $("openLp").hidden = false;
+    if (!q) { try { q = sessionStorage.getItem("hwlai.q") || ""; sessionStorage.removeItem("hwlai.q"); } catch (e) {} }
     if (q.trim()) ask(q.trim().slice(0, 2000)); else $("qHome").focus();
   });
 })();
